@@ -1,4 +1,4 @@
-FROM postgres:16-alpine
+FROM postgres:18-alpine
 
 LABEL org.opencontainers.image.title="BoxMatrix PostgreSQL Database" \
       org.opencontainers.image.description="PostgreSQL 16 container pre-initialized with BoxMatrix VCS JSONB schema" \
