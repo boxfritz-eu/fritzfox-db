@@ -1,0 +1,175 @@
+---
+version: '3'
+
+vars:
+  DB_NAME: boxmatrix
+  DB_USER: boxmatrix
+  DB_HOST: localhost
+  DB_PORT: 5432
+  CONTAINER: boxmatrix-postgres
+  SERVICE: postgres
+  BACKUP_DIR: backups
+
+env:
+  PGPASSWORD: boxmatrix
+
+tasks:
+  up:
+    desc: "Start DB with build (fix mount path automatically via compose)"
+    cmds:
+      - docker compose up -d --build
+
+  down:
+    desc: "Stop DB preserving volume data"
+    cmds:
+      - docker compose down
+
+  fix-mount:
+    desc: "Fix PostgreSQL 18+ data path: remove old volume and restart clean"
+    cmds:
+      - echo "Stopping container and removing old named volume..."
+      - docker compose down -v
+      - echo "Recreating with /var/lib/postgresql mount..."
+      - docker compose up -d --build
+      - echo "Waiting for healthy..."
+      - sleep 3
+      - docker compose ps
+
+  backup:
+    desc: "Timestamped compressed backup"
+    cmds:
+      - mkdir -p {{.BACKUP_DIR}}
+      - echo "Backing up {{.DB_NAME}} ..."
+      - |
+        docker compose exec -t {{.SERVICE}} pg_dump \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          -F c -b -v \
+          -f /tmp/backup_$(date +%Y%m%d_%H%M%S).dump
+      - |
+        docker cp {{.CONTAINER}}:/tmp/backup_$(date +%Y%m%d_%H%M%S).dump \
+          {{.BACKUP_DIR}}/ \
+          || echo "Copy step skipped; check container /tmp"
+
+  backup-host:
+    desc: "Stream compressed backup directly to host backups/ dir"
+    cmds:
+      - mkdir -p {{.BACKUP_DIR}}
+      - echo "Backing up to host file..."
+      - |
+        docker compose exec -T {{.SERVICE}} pg_dump \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          -F c \
+          > {{.BACKUP_DIR}}/boxmatrix_$(date +%Y%m%d_%H%M%S).dump
+      - ls -lh {{.BACKUP_DIR}}/*.dump | tail -1
+
+  backup-plain:
+    desc: "Plain SQL dump to host (good for quick diff/review)"
+    cmds:
+      - mkdir -p {{.BACKUP_DIR}}
+      - |
+        docker compose exec -T {{.SERVICE}} pg_dump \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          --no-owner --no-privileges \
+          > {{.BACKUP_DIR}}/boxmatrix_$(date +%Y%m%d_%H%M%S).sql
+      - echo "Backup complete"
+
+  restore:
+    desc: "Restore from compressed dump file (usage: task restore FILE=backups/name.dump)"
+    cmds:
+      - echo "Restoring from {{.FILE}} ..."
+      - |
+        docker compose exec -T {{.SERVICE}} pg_restore \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          --clean --if-exists -v \
+          < {{.FILE}}
+
+  restore-full:
+    desc: "Restore to a fresh DB (drop/recreate implied by --clean --if-exists)"
+    cmds:
+      - echo "Full restore from {{.FILE}} ..."
+      - |
+        docker compose exec -T {{.SERVICE}} pg_restore \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          --clean --if-exists -v \
+          < {{.FILE}}
+
+  maintain:
+    desc: "Routine maintenance (vacuum + analyze both tables + reindex if needed)"
+    cmds:
+      - echo "Running VACUUM ANALYZE ..."
+      - |
+        docker compose exec -T {{.SERVICE}} psql \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          -c "VACUUM ANALYZE dataset_snapshots; VACUUM ANALYZE item_revisions;"
+      - echo "Done."
+
+  vacuum:
+    desc: "Vacuum + Analyze both tables"
+    cmds:
+      - |
+        docker compose exec -T {{.SERVICE}} psql \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          -c "VACUUM ANALYZE dataset_snapshots; VACUUM ANALYZE item_revisions;"
+
+  reindex:
+    desc: "Reindex item_revisions (use after bulk imports)"
+    cmds:
+      - |
+        docker compose exec -T {{.SERVICE}} psql \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          -c "REINDEX TABLE item_revisions;"
+
+  sizes:
+    desc: "Show table/index sizes inside DB"
+    cmds:
+      - |
+        docker compose exec -T {{.SERVICE}} psql \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          -c "SELECT relname AS object_name, pg_size_pretty(pg_total_relation_size(relid)) AS total_size \
+            FROM pg_catalog.pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DESC;"
+
+  shell:
+    desc: "Interactive psql inside container"
+    cmds:
+      - docker compose exec -it {{.SERVICE}} psql -U {{.DB_USER}} -d {{.DB_NAME}}
+
+  health:
+    desc: "Check DB health via container status and quick query"
+    cmds:
+      - echo "=== Container ==="
+      - docker compose ps
+      - echo "=== Quick query ==="
+      - |
+        docker compose exec -T {{.SERVICE}} psql \
+          -U {{.DB_USER}} -d {{.DB_NAME}} \
+          -tc "SELECT 1 as ok; SELECT pg_is_in_recovery();"
+
+  ps:
+    desc: "Show container status (healthy?)"
+    cmds:
+      - docker compose ps
+
+  logs:
+    desc: "Follow DB logs"
+    cmds:
+      - docker compose logs -f {{.SERVICE}}
+
+  start:
+    desc: "Start existing DB container (no build)"
+    cmds:
+      - docker compose start
+
+  stop:
+    desc: "Stop DB container (preserve data)"
+    cmds:
+      - docker compose stop
+
+  restart:
+    desc: "Restart DB container"
+    cmds:
+      - docker compose restart
+
+  rebuild:
+    desc: "Rebuild image and recreate container"
+    cmds:
+      - docker compose up -d --build --force-recreate

@@ -1,0 +1,7 @@
+---
+# yamllint configuration for fritzfox-db
+rules:
+  line-length: disable
+  document-start: disable
+  truthy: disable
+  empty-values: disable
