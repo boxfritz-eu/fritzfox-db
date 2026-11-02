@@ -1,0 +1,2 @@
+# Environment / secrets — never commit real passwords
+.env

@@ -7,10 +7,16 @@ services:
     image: ghcr.io/kugeleis/boxmatrix-loader-db:latest
     container_name: boxmatrix-postgres
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
+      # Admin credentials (set via .env)
       POSTGRES_USER: ${POSTGRES_USER:-boxmatrix}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-boxmatrix}
       POSTGRES_DB: ${POSTGRES_DB:-boxmatrix}
+      # Writer / reader role credentials from .env
+      WRITER_PASSWORD: ${WRITER_PASSWORD:-boxmatrix_writer_pw}
+      READER_PASSWORD: ${READER_PASSWORD:-boxmatrix_reader_pw}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:

@@ -115,27 +115,39 @@ docker compose down
 
 ## 3. Connecting to the Database
 
-### Default Credentials
+### Credentials Source
 
-| Variable | Default Value | Description |
+Passwords live in `.env` at repo root (copy `.env.example` to `.env` and change the passwords — never commit `.env`).  Run `task up` to start the DB; it loads `.env` automatically via docker compose `env_file`.
+
+| Variable | Description | Default |
 | :--- | :--- | :--- |
-| `POSTGRES_USER` | `boxmatrix` | Database user |
-| `POSTGRES_PASSWORD` | `boxmatrix` | Database password |
-| `POSTGRES_DB` | `boxmatrix` | Database name |
-| `POSTGRES_PORT` | `5432` | Host port |
+| `POSTGRES_USER` | Admin / database owner (also used by postgres entrypoint) | `boxmatrix` |
+| `POSTGRES_PASSWORD` | Admin password | `boxmatrix` |
+| `POSTGRES_DB` | Database name | `boxmatrix` |
+| `POSTGRES_PORT` | Host port | `5432` |
+| `WRITER_PASSWORD` | Writer role password | `boxmatrix_writer_pw` |
+| `READER_PASSWORD` | Reader role password | `boxmatrix_reader_pw` |
 
-Connection String URL:
+Connection strings:
 
 ```text
-postgresql://boxmatrix:boxmatrix@localhost:5432/boxmatrix
+postgresql://boxmatrix_writer:boxmatrix_writer_pw@localhost:5432/boxmatrix
+postgresql://boxmatrix_reader:boxmatrix_reader_pw@localhost:5432/boxmatrix
 ```
 
 ### Interactive `psql` Shell
 
-Connect directly into the running container via Docker:
+Admin (owner) via compose:
 
 ```bash
 docker compose exec -it postgres psql -U boxmatrix -d boxmatrix
+```
+
+Write / read roles:
+
+```bash
+docker compose exec -it postgres psql -U boxmatrix_writer -d boxmatrix
+docker compose exec -it postgres psql -U boxmatrix_reader -d boxmatrix
 ```
 
 ---

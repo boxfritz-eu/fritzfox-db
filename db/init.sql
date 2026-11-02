@@ -29,7 +29,6 @@ CREATE INDEX IF NOT EXISTS idx_revisions_hash ON item_revisions (source, item_ke
 CREATE INDEX IF NOT EXISTS idx_revisions_created_at ON item_revisions (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_revisions_data_gin ON item_revisions USING gin (data);
 
--- View providing instant access to the latest state of each item per source
 CREATE OR REPLACE VIEW current_items AS
 SELECT DISTINCT ON (source, item_key)
     id,
@@ -42,3 +41,27 @@ SELECT DISTINCT ON (source, item_key)
     created_at
 FROM item_revisions
 ORDER BY source, item_key, version DESC;
+
+-- Separate write / read roles (passwords match .env defaults; edit both to change)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'boxmatrix_writer') THEN
+        CREATE ROLE "boxmatrix_writer" WITH LOGIN PASSWORD 'boxmatrix_writer_pw';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'boxmatrix_reader') THEN
+        CREATE ROLE "boxmatrix_reader" WITH LOGIN PASSWORD 'boxmatrix_reader_pw';
+    END IF;
+END $$;
+
+GRANT CONNECT ON DATABASE "boxmatrix" TO "boxmatrix_writer", "boxmatrix_reader";
+GRANT USAGE ON SCHEMA public TO "boxmatrix_writer", "boxmatrix_reader";
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "boxmatrix_writer";
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_writer";
+
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO "boxmatrix_reader";
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_reader";
