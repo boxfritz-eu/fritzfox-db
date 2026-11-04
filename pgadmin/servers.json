@@ -1,0 +1,23 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "postgres (boxmatrix)",
+      "Group": "default",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "${POSTGRES_DB:-boxmatrix}",
+      "Username": "${POSTGRES_USER:-boxmatrix}",
+      "Password": "${POSTGRES_PASSWORD:-boxmatrix}",
+      "Role": "",
+      "ShowSystemDatabases": true,
+      "ShowSystemObjects": true,
+      "SSLMode": "prefer",
+      "Comment": "BoxMatrix database. Credentials expanded at startup from compose env vars.",
+      "SharedServerGroup": false,
+      "Discovery": false,
+      "ServiceName": "",
+      "ServiceParameters": "",
+      "Connect": false
+    }
+  }
+}

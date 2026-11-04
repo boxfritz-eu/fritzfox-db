@@ -27,5 +27,34 @@ services:
       timeout: 5s
       retries: 5
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: boxmatrix-pgadmin
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5433:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${POSTGRES_USER:-boxmatrix}@boxmatrix.local
+      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:-boxmatrix}
+      PGADMIN_DISABLE_POSTFIX: "1"
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "true"
+      PGADMIN_SERVER_JSON_FILE: /tmp/servers.json
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        python3 -c "
+        import os
+        with open('/pgadmin4/servers.json') as f: content = f.read()
+        expanded = os.path.expandvars(content)
+        with open('/tmp/servers.json', 'w') as f: f.write(expanded)
+        " && exec /entrypoint.sh
+
 volumes:
   pgdata:
+  pgadmin-data:

@@ -9,6 +9,7 @@ This guide provides step-by-step instructions for operating, maintaining, and in
 1. [Architecture & Storage Concept](#1-architecture--storage-concept)
 2. [Spinning up PostgreSQL with Docker Compose](#2-spinning-up-postgresql-with-docker-compose)
 3. [Connecting to the Database](#3-connecting-to-the-database)
+   3.1. [pgAdmin (Web GUI)](#31-pgadmin-web-gui)
 4. [Using the CLI Tooling in this Repo](#4-using-the-cli-tooling-in-this-repo)
 5. [Standardized Access for Other Scripts & Services](#5-standardized-access-for-other-scripts--services)
 6. [VCS-Style Version Tracking & Manual Restore](#6-vcs-style-version-tracking--manual-restore)
@@ -150,6 +151,61 @@ docker compose exec -it postgres psql -U boxmatrix_writer -d boxmatrix
 docker compose exec -it postgres psql -U boxmatrix_reader -d boxmatrix
 ```
 
+### 3.1. pgAdmin (Web GUI)
+
+pgAdmin 4 provides a web-based GUI for managing the PostgreSQL database. It is included in `docker-compose.yml` and exposes on port 8090.
+
+**Starting and Stopping:**
+
+```bash
+# Start pgAdmin (runs in background)
+docker compose up -d pgadmin
+
+# Stop pgAdmin
+docker compose stop pgadmin
+```
+
+**Accessing pgAdmin:**
+Open <http://localhost:8090> in your web browser.
+
+**Credentials:**
+
+- Email: `PGADMIN_DEFAULT_EMAIL` (from compose env, defaults to `boxmatrix@boxmatrix.local`)
+- Password: `PGADMIN_DEFAULT_PASSWORD` (same as `POSTGRES_PASSWORD`)
+
+**Server Connection:**
+
+- A pre-configured server entry for `postgres` is available via `./pgadmin/servers.json`
+- **Host:** `postgres` (the docker service name)
+- **Port:** 5432
+- **Maintenance DB:** `boxmatrix`
+- **Username:** `${POSTGRES_USER:-boxmatrix}`
+- **Password:** `${POSTGRES_PASSWORD:-boxmatrix}`
+
+**Important Notes:**
+
+- Credentials are expanded at container startup from `.env` values via a Python script, so passwords are never hardcoded in the committed `servers.json` template
+- `PGADMIN_REPLACE_SERVERS_ON_STARTUP` is set to `true` to re-apply server definitions on each container start
+- `PGADMIN_DISABLE_POSTFIX` is set to `"1"` to prevent email delivery issues in homeserver environments
+- The `pgadmin-data` volume persists all configuration and session data
+
+**Accessing via Docker:**
+
+```bash
+# List running containers
+docker compose ps
+
+# View logs
+docker compose logs -f pgadmin
+```
+
+**Important Security Note:**
+This setup is designed for homeserver use. For production environments, consider:
+
+- Adding TLS (set `PGADMIN_ENABLE_TLS` and provide certificates)
+- Using proper authentication mechanisms
+- Restricting access via firewall or reverse proxy
+
 ---
 
 ## 4. Using the CLI Tooling in this Repo
@@ -221,12 +277,14 @@ database:
 
 Any external script (e.g., converter, normalizer, or API) can interact with this database using standard SQL or any language's PostgreSQL client.
 
+`boxmatrix-clean` is the primary consumer of the `converter-specs` namespace, reading raw data via the `current_items` view and writing the cleaned pipeline output back as new revisions.
+
 ### 5.1 Recommended Convention
 
 Use the `source` column to isolate your service:
 
-- `boxmatrix-raw`: Raw scraped wiki data from this repo.
-- `converter-specs`: Cleaned / converted specifications.
+- `boxmatrix-raw`: Raw scraped wiki data from this repo (written by `boxmatrix-loader`).
+- `converter-specs`: Cleaned / converted specifications (written by `boxmatrix-clean`).
 - `custom-enrichment`: Data enriched with third-party prices or release info.
 
 ### 5.2 Python Example (`asyncpg` / `psycopg`)
