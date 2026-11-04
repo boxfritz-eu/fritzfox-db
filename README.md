@@ -212,6 +212,23 @@ This setup is designed for homeserver use. For production environments, consider
 
 This repository provides built-in CLI commands to manage and interact with the database.
 
+### 4.0 Taskfile (Docker / Maintenance Tasks)
+
+All Docker lifecycle and maintenance tasks are driven by `Taskfile.yml`:
+
+```bash
+task up            # Start DB with build (loads .env)
+task down          # Stop DB, preserving data
+task rebuild       # Rebuild image and recreate container
+task backup        # Timestamped compressed backup to ./backups
+task backup-host   # Stream compressed backup directly to host backups/
+task restore FILE=backups/boxmatrix.dump   # Restore from a dump
+task maintain      # VACUUM ANALYZE both tables
+task sizes         # Show table/index sizes
+task shell         # Interactive psql
+task health        # Check container status and quick query
+```
+
 ### 4.1 Initialize or Verify Schema (`boxmatrix-db init`)
 
 ```bash
@@ -426,13 +443,21 @@ WHERE id = 2;
 
 ### 7.1 Creating a Backup
 
-Create a timestamped compressed backup file:
+Using the repo's `Taskfile` (writes to the `./backups` directory defined by `docker-compose.yml`):
 
 ```bash
-docker compose exec -t postgres pg_dump -U boxmatrix -d boxmatrix -F c -b -v -f /var/lib/postgresql/data/backup_$(date +%Y%m%d_%H%M%S).dump
+task backup
 ```
 
-Or backup directly to your host machine:
+Custom filename / directory: `task backup FILE=backups/weekly.dump`
+
+Or using `docker compose` directly (writes inside container to `/backups`):
+
+```bash
+docker compose exec -t postgres pg_dump -U boxmatrix -d boxmatrix -F c -b -v -f /backups/backup_$(date +%Y%m%d_%H%M%S).dump
+```
+
+Or backup directly to your host machine (no bind mount needed):
 
 ```bash
 docker compose exec -T postgres pg_dump -U boxmatrix -d boxmatrix -F c > backup_$(date +%Y%m%d_%H%M%S).dump
@@ -440,10 +465,16 @@ docker compose exec -T postgres pg_dump -U boxmatrix -d boxmatrix -F c > backup_
 
 ### 7.2 Restoring from a Backup
 
-To restore into a fresh or clean database:
+Using the repo's `Taskfile`:
 
 ```bash
-# Drop connections and restore
+# Restore from a dump file created by `task backup` or `task backup-host`
+task restore FILE=backups/boxmatrix_YYYYMMDD_HHMMSS.dump
+```
+
+Or using `docker compose`:
+
+```bash
 docker compose exec -T postgres pg_restore -U boxmatrix -d boxmatrix --clean --if-exists -v < backup_file.dump
 ```
 
@@ -453,7 +484,13 @@ docker compose exec -T postgres pg_restore -U boxmatrix -d boxmatrix --clean --i
 
 ### 8.1 Vacuum & Analyze
 
-PostgreSQL automatically runs autovacuum, but after massive batch imports or heavy testing, running `VACUUM ANALYZE` optimizes query planning:
+Using the `Taskfile`:
+
+```bash
+task maintain
+```
+
+Or manually via `psql`:
 
 ```sql
 VACUUM ANALYZE dataset_snapshots;

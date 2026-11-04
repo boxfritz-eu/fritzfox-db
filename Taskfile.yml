@@ -9,6 +9,7 @@ vars:
   CONTAINER: boxmatrix-postgres
   SERVICE: postgres
   BACKUP_DIR: backups
+  BACKUP_BASE_DIR: "${BACKUP_DIR:-backups}"
 
 env:
   PGPASSWORD: ${PGPASSWORD:-}
@@ -33,19 +34,19 @@ tasks:
       - sleep 3
       - docker compose ps
   backup:
-    desc: "Timestamped compressed backup"
+    desc: "Timestamped compressed backup (writes to ./backups via bind mount)"
     cmds:
-      - mkdir -p {{.BACKUP_DIR}}
-      - echo "Backing up {{.DB_NAME}} ..."
       - |
+        TS=$(date +%Y%m%d_%H%M%S)
+        FILE=${FILE:-boxmatrix_${TS}.dump}
+        mkdir -p backups
+        chmod a+w backups
+        echo "Backing up {{.DB_NAME}} ..."
         docker compose exec -t {{.SERVICE}} pg_dump \
           -U {{.DB_USER}} -d {{.DB_NAME}} \
           -F c -b -v \
-          -f /tmp/backup_$(date +%Y%m%d_%H%M%S).dump
-      - |
-        docker cp {{.CONTAINER}}:/tmp/backup_$(date +%Y%m%d_%H%M%S).dump \
-          {{.BACKUP_DIR}}/ \
-          || echo "Copy step skipped; check container /tmp"
+          -f "/backups/$FILE"
+        ls -lh backups/$FILE
   backup-host:
     desc: "Stream compressed backup directly to host backups/ dir"
     cmds:
