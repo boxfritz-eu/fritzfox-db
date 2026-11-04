@@ -42,6 +42,44 @@ SELECT DISTINCT ON (source, item_key)
 FROM item_revisions
 ORDER BY source, item_key, version DESC;
 
+-- Denormalized boxes table: one row per box, key fields extracted for fast queries
+CREATE TABLE IF NOT EXISTS boxes (
+    id BIGSERIAL PRIMARY KEY,
+    source VARCHAR(64) NOT NULL DEFAULT 'converter-specs',
+    name TEXT NOT NULL,
+    model TEXT,
+    wifi_generation TEXT,
+    internet TEXT[],
+    lan_ports INTEGER,
+    wifi_speed INTEGER,
+    has_24ghz BOOLEAN DEFAULT FALSE,
+    has_5ghz BOOLEAN DEFAULT FALSE,
+    has_cable BOOLEAN DEFAULT FALSE,
+    has_dsl BOOLEAN DEFAULT FALSE,
+    has_fiber BOOLEAN DEFAULT FALSE,
+    has_mobile BOOLEAN DEFAULT FALSE,
+    firmware TEXT,
+    intro_date BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_boxes_source_name UNIQUE (source, name)
+);
+
+-- Trigger to auto-update updated_at on row modification
+CREATE OR REPLACE FUNCTION update_boxes_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_boxes_updated_at ON boxes;
+CREATE TRIGGER trigger_boxes_updated_at
+    BEFORE UPDATE ON boxes
+    FOR EACH ROW
+    EXECUTE FUNCTION update_boxes_updated_at();
+
 -- Separate write / read roles (passwords match .env defaults; edit both to change)
 DO $$
 BEGIN
