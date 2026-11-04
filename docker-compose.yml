@@ -37,7 +37,7 @@ services:
     ports:
       - "5433:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${POSTGRES_USER:-boxmatrix}@boxmatrix.local
+      PGADMIN_DEFAULT_EMAIL: ${POSTGRES_USER:-boxmatrix}@foobarpg.org
       PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:-boxmatrix}
       PGADMIN_DISABLE_POSTFIX: "1"
       PGADMIN_REPLACE_SERVERS_ON_STARTUP: "true"
