@@ -103,12 +103,13 @@ ON CONFLICT (key) DO NOTHING;
 CREATE OR REPLACE VIEW model_price_moving_avg AS
 SELECT
     name,
-    AVG(price_new) OVER (PARTITION BY name) AS avg_price_new,
-    AVG(price_used) OVER (PARTITION BY name) AS avg_price_used
+    AVG(price) FILTER (WHERE NOT is_used) AS avg_price_new,
+    AVG(price) FILTER (WHERE is_used) AS avg_price_used
 FROM prices
-WHERE last_updated >= NOW() - INTERVAL '1 day' * (
+WHERE date_time >= NOW() - INTERVAL '1 day' * (
     SELECT value::int FROM app_config WHERE key = 'window_days'
-);
+)
+GROUP BY name;
 
 -- Joined view: box specs + moving average prices together
 CREATE OR REPLACE VIEW boxes_with_prices AS

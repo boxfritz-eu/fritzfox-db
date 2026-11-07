@@ -237,13 +237,13 @@ The view query below automatically uses the new value on every execution — no 
 CREATE OR REPLACE VIEW model_price_moving_avg AS
 SELECT
     name,
-    AVG(price_new) OVER (PARTITION BY name) AS avg_price_new,
-    AVG(price_used) OVER (PARTITION BY name) AS avg_price_used
+    AVG(price) FILTER (WHERE NOT is_used) AS avg_price_new,
+    AVG(price) FILTER (WHERE is_used) AS avg_price_used
 FROM prices
-WHERE last_updated >= NOW() - INTERVAL '1 day' * (
+WHERE date_time >= NOW() - INTERVAL '1 day' * (
     SELECT value::int FROM app_config WHERE key = 'window_days'
-);
-ORDER BY name;
+)
+GROUP BY name;
 ```
 
 The `prices` table (written by `ebay-prices`) and the moving average view let consumers query recent pricing trends without scanning the entire price history.
@@ -254,13 +254,12 @@ The `prices` table stores one row per FRITZ!Box model:
 
 ```sql
 CREATE TABLE IF NOT EXISTS prices (
-    name TEXT NOT NULL PRIMARY KEY,
-    price_new FLOAT,
-    price_used FLOAT,
-    count INTEGER DEFAULT 0,
-    ebay_id TEXT,
-    description TEXT,
-    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    ebay_id      BIGINT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    price        NUMERIC(12,2),
+    is_used      BOOLEAN,
+    description  TEXT,
+    date_time TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 
@@ -268,13 +267,12 @@ CREATE TABLE IF NOT EXISTS prices (
 
 | Column | Type | Description |
 | :--- | :--- | :--- |
-| `name` | `TEXT` | Primary key - the FRITZ!Box model name (e.g., `FRITZ!Box 7590 AX`) |
-| `price_new` | `FLOAT` | Most recent average/new price |
-| `price_used` | `FLOAT` | Most recent average/used price |
-| `count` | `INTEGER` | Number of sales counted for the estimate |
-| `ebay_id` | `TEXT` | eBay item ID of the sold listing |
+| `ebay_id` | `BIGINT` | Primary key - eBay item ID of the sold listing |
+| `name` | `TEXT` | FRITZ!Box model name (e.g., `FRITZ!Box 7590 AX`) |
+| `price` | `NUMERIC(12,2)` | Sale price of the listing |
+| `is_used` | `BOOLEAN` | Whether the listing was used (`true`) or new (`false`) |
 | `description` | `TEXT` | Description of the sold item |
-| `last_updated` | `TIMESTAMPTZ` | When the price was last updated (default: `CURRENT_TIMESTAMP`) |
+| `date_time` | `TIMESTAMPTZ` | When the listing was sold (default: `now()`) |
 
 ---
 
