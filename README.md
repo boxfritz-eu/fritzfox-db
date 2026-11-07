@@ -10,6 +10,7 @@ This guide provides step-by-step instructions for operating, maintaining, and in
 2. [Spinning up PostgreSQL with Docker Compose](#2-spinning-up-postgresql-with-docker-compose)
 3. [Connecting to the Database](#3-connecting-to-the-database)
    3.1. [pgAdmin (Web GUI)](#31-pgadmin-web-gui)
+   3.2. [Config Table & Moving Average Window](#32-config-table--moving-average-window)
 4. [Using the CLI Tooling in this Repo](#4-using-the-cli-tooling-in-this-repo)
 5. [Standardized Access for Other Scripts & Services](#5-standardized-access-for-other-scripts--services)
 6. [VCS-Style Version Tracking & Manual Restore](#6-vcs-style-version-tracking--manual-restore)
@@ -40,7 +41,7 @@ The database implements a **dual-layer Version Control System (VCS) model** with
 │ - item_key ('FRITZ!Box 7590 AX', '7590', etc.)              │
 │ - version (1, 2, 3... per item)                             │
 │ - data_hash (SHA-256 hash of item JSONB)                    │
-│ - data (JSONB, individual entity object)                    │
+│ - data (JSONB, individual entity object)                   │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                ▼
@@ -205,6 +206,47 @@ This setup is designed for homeserver use. For production environments, consider
 - Adding TLS (set `PGADMIN_ENABLE_TLS` and provide certificates)
 - Using proper authentication mechanisms
 - Restricting access via firewall or reverse proxy
+
+### 3.2. Config Table & Moving Average Window
+
+The `model_price_moving_avg` view averages prices per model over a configurable look-back window. The window size (in days) lives in the `app_config` table so it can be updated without restarting the container:
+
+```sql
+CREATE TABLE IF NOT EXISTS app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+INSERT INTO app_config (key, value) VALUES ('window_days', '60')
+ON CONFLICT (key) DO NOTHING;
+```
+
+### Updating the Window
+
+Change the look-back period via direct SQL or a psql client:
+
+```sql
+UPDATE app_config SET value = '30' WHERE key = 'window_days';
+```
+
+The view query below automatically uses the new value on every execution — no container restart needed.
+
+### View Definition
+
+```sql
+CREATE OR REPLACE VIEW model_price_moving_avg AS
+SELECT
+    name,
+    AVG(price_new) OVER (PARTITION BY name) AS avg_price_new,
+    AVG(price_used) OVER (PARTITION BY name) AS avg_price_used
+FROM prices
+WHERE last_updated >= NOW() - INTERVAL '1 day' * (
+    SELECT value::int FROM app_config WHERE key = 'window_days'
+);
+ORDER BY name;
+```
+
+The `prices` table (written by `ebay-prices`) and the moving average view let consumers query recent pricing trends without scanning the entire price history.
 
 ---
 
