@@ -82,13 +82,12 @@ CREATE TRIGGER trigger_boxes_updated_at
 
 -- Price summary per model, populated by ebay-prices
 CREATE TABLE IF NOT EXISTS prices (
-    name TEXT NOT NULL PRIMARY KEY,
-    price_new FLOAT,
-    price_used FLOAT,
-    count INTEGER DEFAULT 0,
-    ebay_id TEXT,
-    description TEXT,
-    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    ebay_id      BIGINT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    price        NUMERIC(12,2),
+    is_used      BOOLEAN,
+    description  TEXT,
+    date_time TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Config table for moving average window size (days)
