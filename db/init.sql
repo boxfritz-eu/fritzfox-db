@@ -131,13 +131,15 @@ LEFT JOIN model_price_moving_avg m ON m.name = b.name;
 -- Current boxes: latest revision per model filtered by max_age_years from app_config
 -- intro_date is a Unix timestamp (BIGINT), so convert to TIMESTAMPTZ for comparison
 CREATE OR REPLACE VIEW current_boxes AS
-SELECT *
+SELECT b.*
 FROM boxes b
-WHERE to_timestamp(b.intro_date) >= NOW() - INTERVAL '1 year' * (
-    SELECT value::int
-    FROM app_config
-    WHERE key = 'max_age_years'
-);
+WHERE b.intro_date >= EXTRACT(EPOCH FROM (
+    NOW() - make_interval(years => (
+        SELECT value::int
+        FROM app_config
+        WHERE key = 'max_age_years'
+    ))
+));
 
 -- Separate write / read roles (passwords match .env defaults; edit both to change)
 DO $$
