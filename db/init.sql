@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS prices (
     price_new FLOAT,
     price_used FLOAT,
     count INTEGER DEFAULT 0,
+    ebay_id TEXT,
+    description TEXT,
     last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -248,6 +248,34 @@ ORDER BY name;
 
 The `prices` table (written by `ebay-prices`) and the moving average view let consumers query recent pricing trends without scanning the entire price history.
 
+### Prices Table Schema
+
+The `prices` table stores one row per FRITZ!Box model:
+
+```sql
+CREATE TABLE IF NOT EXISTS prices (
+    name TEXT NOT NULL PRIMARY KEY,
+    price_new FLOAT,
+    price_used FLOAT,
+    count INTEGER DEFAULT 0,
+    ebay_id TEXT,
+    description TEXT,
+    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Columns:**
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `name` | `TEXT` | Primary key - the FRITZ!Box model name (e.g., `FRITZ!Box 7590 AX`) |
+| `price_new` | `FLOAT` | Most recent average/new price |
+| `price_used` | `FLOAT` | Most recent average/used price |
+| `count` | `INTEGER` | Number of sales counted for the estimate |
+| `ebay_id` | `TEXT` | eBay item ID of the sold listing |
+| `description` | `TEXT` | Description of the sold item |
+| `last_updated` | `TIMESTAMPTZ` | When the price was last updated (default: `CURRENT_TIMESTAMP`) |
+
 ---
 
 ## 4. Using the CLI Tooling in this Repo
