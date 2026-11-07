@@ -14,7 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_source_captured ON dataset_snapshots (s
 
 CREATE TABLE IF NOT EXISTS item_revisions (
     id BIGSERIAL PRIMARY KEY,
-    snapshot_id BIGINT REFERENCES dataset_snapshots(id) ON DELETE SET NULL,
+    snapshot_id BIGSERIAL REFERENCES dataset_snapshots(id) ON DELETE SET NULL,
     source VARCHAR(64) NOT NULL DEFAULT 'boxmatrix-raw',
     item_key TEXT NOT NULL,
     version INTEGER NOT NULL,
@@ -80,6 +80,52 @@ CREATE TRIGGER trigger_boxes_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_boxes_updated_at();
 
+-- Price summary per model, populated by ebay-prices
+CREATE TABLE IF NOT EXISTS prices (
+    name TEXT NOT NULL PRIMARY KEY,
+    price_new FLOAT,
+    price_used FLOAT,
+    count INTEGER DEFAULT 0,
+    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Config table for moving average window size (days)
+CREATE TABLE IF NOT EXISTS app_config (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+INSERT INTO app_config (key, value) VALUES ('window_days', '60')
+ON CONFLICT (key) DO NOTHING;
+
+-- Moving average view: average new/used price per model over last N days (configurable)
+CREATE OR REPLACE VIEW model_price_moving_avg AS
+SELECT
+    name,
+    AVG(price_new) OVER (PARTITION BY name) AS avg_price_new,
+    AVG(price_used) OVER (PARTITION BY name) AS avg_price_used
+FROM prices
+WHERE last_updated >= NOW() - INTERVAL '1 day' * (
+    SELECT value::int FROM app_config WHERE key = 'window_days'
+);
+
+-- Joined view: box specs + moving average prices together
+CREATE OR REPLACE VIEW boxes_with_prices AS
+SELECT
+    b.name,
+    b.source,
+    b.model,
+    b.wifi_generation,
+    b.internet,
+    b.lan_ports,
+    b.wifi_speed,
+    b.intro_date,
+    b.firmware,
+    m.avg_price_new,
+    m.avg_price_used
+FROM boxes b
+LEFT JOIN model_price_moving_avg m ON m.name = b.name;
+
 -- Separate write / read roles (passwords match .env defaults; edit both to change)
 DO $$
 BEGIN
@@ -97,9 +143,8 @@ END $$;
 
 GRANT CONNECT ON DATABASE "boxmatrix" TO "boxmatrix_writer", "boxmatrix_reader";
 GRANT USAGE ON SCHEMA public TO "boxmatrix_writer", "boxmatrix_reader";
-
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "boxmatrix_writer";
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_writer";
-
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO "boxmatrix_reader";
-GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_reader";
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_reader";
+```
