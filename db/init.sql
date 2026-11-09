@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS dataset_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_snapshots_source_captured ON dataset_snapshots (source, captured_at DESC);
 
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
 CREATE TABLE IF NOT EXISTS item_revisions (
     id BIGSERIAL PRIMARY KEY,
     snapshot_id BIGSERIAL REFERENCES dataset_snapshots(id) ON DELETE SET NULL,
@@ -162,3 +164,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "boxmatri
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_writer";
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO "boxmatrix_reader";
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_reader";
+
+SELECT cron.schedule(
+    'full-dump-nightly',
+    '22 2 * * *',
+    $$ PGPASSWORD=${WRITER_PASSWORD} pg_dump -Fc -U ${POSTGRES_USER} -d ${POSTGRES_DB} > /backups/full_backup_$(date +%Y%m%d).dump $$
+);
