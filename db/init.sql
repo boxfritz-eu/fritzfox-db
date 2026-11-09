@@ -169,15 +169,15 @@ SELECT cron.schedule(
 );
 
 -- Scheduled automated backup via pg_cron (runs every night at 02:22)
-DO $$
+DO $cron_block$
 DECLARE
     backup_cmd text;
 BEGIN
     backup_cmd := format(
-        'COPY (SELECT 1) TO PROGRAM ''sh -c "pg_dump -U %s -d %s -Fc -f /backups/%s_\$$(date +%%%%Y%%%%m%%%%d_%%%%H%%%%M%%%%S).dump"''',
+        'COPY (SELECT 1) TO PROGRAM ''sh -c "pg_dump -U %s -d %s -Fc -f /backups/%s_$(date +%%Y%%m%%d_%%H%%M%%S).dump"''',
         current_user,
         current_database(),
         current_database()
     );
     PERFORM cron.schedule('full-dump-nightly', '22 2 * * *', backup_cmd);
-END $$;
+END $cron_block$;
