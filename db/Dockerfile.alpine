@@ -1,0 +1,27 @@
+FROM postgres:18-alpine
+
+ARG APP_NAME=PostgreSQL
+LABEL org.opencontainers.image.title="${APP_NAME} Database (Alpine)" \
+      org.opencontainers.image.description="PostgreSQL 18 Alpine with pg_cron enabled"
+
+# Build and install pg_cron from source against PostgreSQL 18 on Alpine
+RUN set -eux; \
+    apk add --no-cache --virtual .build-deps \
+        build-base \
+        git \
+    ; \
+    git clone --depth 1 https://github.com/citusdata/pg_cron.git /tmp/pg_cron; \
+    cd /tmp/pg_cron; \
+    make with_llvm=no; \
+    make with_llvm=no install; \
+    cd /; \
+    rm -rf /tmp/pg_cron; \
+    apk del --no-network .build-deps
+
+# Preload pg_cron extension
+CMD ["sh", "-c", "exec postgres -c shared_preload_libraries=pg_cron -c cron.database_name=\"${POSTGRES_DB:-postgres}\""]
+
+COPY init.sql /docker-entrypoint-initdb.d/20-init.sql
+
+HEALTHCHECK --interval=5s --timeout=5s --retries=10 --start-period=10s \
+    CMD pg_isready -h 127.0.0.1 -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}"
