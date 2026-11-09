@@ -7,8 +7,8 @@ LABEL org.opencontainers.image.title="BoxMatrix PostgreSQL Database" \
       org.opencontainers.image.description="PostgreSQL 18 with pg_cron enabled" \
       org.opencontainers.image.source="https://github.com/Kugeleis/boxmatrix-loader"
 
-# Install pg_cron from the PGDG repo that is already configured in the official
-# image (PG_MAJOR is set by the base image). No compiler or build tools needed.
+# Install pg_cron from the PostgreSQL repository that is already configured in the official
+# image (PG_MAJOR is set by the base image). This installs the pg_cron extension package.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends "postgresql-${PG_MAJOR}-cron"; \
