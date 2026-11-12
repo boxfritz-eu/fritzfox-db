@@ -1,4 +1,4 @@
--- BoxMatrix PostgreSQL Schema Initialization
+-- PostgreSQL Schema Initialization
 -- Dual-table VCS architecture with JSONB storage
 
 CREATE TABLE IF NOT EXISTS dataset_snapshots (
@@ -149,24 +149,35 @@ BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'boxmatrix_writer') THEN
         CREATE ROLE "boxmatrix_writer" WITH LOGIN PASSWORD 'boxmatrix_writer_pw';
     END IF;
-END $$;
-
-DO $$
-BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'boxmatrix_reader') THEN
         CREATE ROLE "boxmatrix_reader" WITH LOGIN PASSWORD 'boxmatrix_reader_pw';
     END IF;
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO "boxmatrix_writer", "boxmatrix_reader"', current_database());
 END $$;
 
-GRANT CONNECT ON DATABASE "boxmatrix" TO "boxmatrix_writer", "boxmatrix_reader";
 GRANT USAGE ON SCHEMA public TO "boxmatrix_writer", "boxmatrix_reader";
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "boxmatrix_writer";
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_writer";
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO "boxmatrix_reader";
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "boxmatrix_reader";
 
+-- Scheduled maintenance via pg_cron (runs VACUUM ANALYZE every night at 03:00)
 SELECT cron.schedule(
-    'full-dump-nightly',
-    '22 2 * * *',
-    $$ PGPASSWORD=${WRITER_PASSWORD} pg_dump -Fc -U ${POSTGRES_USER} -d ${POSTGRES_DB} > /backups/full_backup_$(date +%Y%m%d).dump $$
+    'nightly-maintenance',
+    '0 3 * * *',
+    'VACUUM ANALYZE;'
 );
+
+-- Scheduled automated backup via pg_cron (runs every night at 02:22)
+DO $cron_block$
+DECLARE
+    backup_cmd text;
+BEGIN
+    backup_cmd := format(
+        'COPY (SELECT 1) TO PROGRAM ''sh -c "pg_dump -U %s -d %s -Fc -f /backups/%s_$(date +%%Y%%m%%d_%%H%%M%%S).dump"''',
+        current_user,
+        current_database(),
+        current_database()
+    );
+    PERFORM cron.schedule('full-dump-nightly', '22 2 * * *', backup_cmd);
+END $cron_block$;

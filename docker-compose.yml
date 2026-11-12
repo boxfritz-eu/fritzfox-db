@@ -4,8 +4,8 @@ services:
     build:
       context: ./db
       dockerfile: Dockerfile
-    image: ghcr.io/kugeleis/boxmatrix-loader-db:latest
-    container_name: boxmatrix-postgres
+    image: ${POSTGRES_IMAGE:-ghcr.io/kugeleis/boxmatrix-loader-db:latest}
+    container_name: ${POSTGRES_CONTAINER_NAME:-boxmatrix-postgres}
     restart: unless-stopped
     env_file:
       - .env
@@ -17,6 +17,12 @@ services:
       # Writer / reader role credentials from .env
       WRITER_PASSWORD: ${WRITER_PASSWORD:-boxmatrix_writer_pw}
       READER_PASSWORD: ${READER_PASSWORD:-boxmatrix_reader_pw}
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_cron"
+      - "-c"
+      - "cron.database_name=${POSTGRES_DB:-boxmatrix}"
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -30,15 +36,15 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: boxmatrix-pgadmin
+    container_name: ${PGADMIN_CONTAINER_NAME:-boxmatrix-pgadmin}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "5433:80"
+      - "${PGADMIN_PORT:-5433}:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${POSTGRES_USER:-boxmatrix}@foobarpg.org
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-${POSTGRES_USER:-boxmatrix}@foobarpg.org}
       PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:-boxmatrix}
       PGADMIN_DISABLE_POSTFIX: "1"
       PGADMIN_REPLACE_SERVERS_ON_STARTUP: "true"
